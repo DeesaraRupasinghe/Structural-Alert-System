@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "951766696602",
+    "firebase_url": "https://construction-monitoring-iot-default-rtdb.firebaseio.com",
+    "project_id": "construction-monitoring-iot",
+    "storage_bucket": "construction-monitoring-iot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:951766696602:android:ea308a0b37708f0441d523",
+        "android_client_info": {
+          "package_name": "com.example.structural_alert_system"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC-ufRlaSXBZR4uMH8Hz4jzIhf_ITapZCs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

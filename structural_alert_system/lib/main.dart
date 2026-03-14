@@ -1,121 +1,298 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'firebase_options.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  runApp(const ConstructionSafetyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Data model for sensor log entries from Firebase.
+class SensorLog {
+  final int soilMoisture;
+  final int vibration;
+  final double tiltX;
+  final double tiltY;
+  final int distance;
+  final int timestamp;
 
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+  const SensorLog({
+    required this.soilMoisture,
+    required this.vibration,
+    required this.tiltX,
+    required this.tiltY,
+    required this.distance,
+    required this.timestamp,
+  });
+
+  factory SensorLog.fromMap(Map<String, dynamic> map) {
+    return SensorLog(
+      soilMoisture: (map['soilMoisture'] ?? 0) as int,
+      vibration: (map['vibration'] ?? 0) as int,
+      tiltX: (map['tiltX'] ?? 0.0).toDouble(),
+      tiltY: (map['tiltY'] ?? 0.0).toDouble(),
+      distance: (map['distance'] ?? 0) as int,
+      timestamp: (map['timestamp'] ?? 0) as int,
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class ConstructionSafetyApp extends StatelessWidget {
+  const ConstructionSafetyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    return MaterialApp(
+      title: 'StructAlert – Construction Safety Monitor',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blueGrey,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+      ),
+      home: const SafetyDashboard(),
+    );
+  }
+}
+
+class SafetyDashboard extends StatelessWidget {
+  const SafetyDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final DatabaseReference sensorRef =
+        FirebaseDatabase.instance.ref('sensorLogs');
+
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('StructAlert – Construction Safety Monitor'),
+        centerTitle: true,
+        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: StreamBuilder<DatabaseEvent>(
+        stream: sensorRef.onValue,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Center(child: Text('Error loading sensor data'));
+          }
+
+          if (!snapshot.hasData ||
+              snapshot.data!.snapshot.value == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final rawData =
+              Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
+
+          // Extract the latest record by highest timestamp
+          SensorLog? latest;
+          for (final entry in rawData.entries) {
+            final record = Map<String, dynamic>.from(entry.value as Map);
+            final log = SensorLog.fromMap(record);
+            if (latest == null || log.timestamp > latest.timestamp) {
+              latest = log;
+            }
+          }
+
+          if (latest == null) {
+            return const Center(child: Text('No sensor data available'));
+          }
+
+          return DashboardContent(
+            soilMoisture: latest.soilMoisture,
+            vibration: latest.vibration,
+            tiltX: latest.tiltX,
+            tiltY: latest.tiltY,
+            distance: latest.distance,
+            timestamp: latest.timestamp,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class DashboardContent extends StatelessWidget {
+  final int soilMoisture;
+  final int vibration;
+  final double tiltX;
+  final double tiltY;
+  final int distance;
+  final int timestamp;
+
+  const DashboardContent({
+    super.key,
+    required this.soilMoisture,
+    required this.vibration,
+    required this.tiltX,
+    required this.tiltY,
+    required this.distance,
+    required this.timestamp,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> warnings = _buildWarnings();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...warnings,
+          if (warnings.isNotEmpty) const SizedBox(height: 8),
+          _buildSensorCard(
+            icon: Icons.water_drop,
+            label: 'Soil Moisture',
+            value: '$soilMoisture',
+            color: _soilMoistureColor(),
+          ),
+          _buildSensorCard(
+            icon: Icons.vibration,
+            label: 'Vibration Status',
+            value: vibration == 1 ? 'DETECTED' : 'Normal',
+            color: vibration == 1 ? Colors.red : Colors.green,
+          ),
+          _buildSensorCard(
+            icon: Icons.screen_rotation,
+            label: 'Tilt X',
+            value: '${tiltX.toStringAsFixed(2)}°',
+            color: _tiltColor(tiltX),
+          ),
+          _buildSensorCard(
+            icon: Icons.screen_rotation,
+            label: 'Tilt Y',
+            value: '${tiltY.toStringAsFixed(2)}°',
+            color: _tiltColor(tiltY),
+          ),
+          _buildSensorCard(
+            icon: Icons.straighten,
+            label: 'Distance (mm)',
+            value: '$distance mm',
+            color: _distanceColor(),
+          ),
+          _buildSensorCard(
+            icon: Icons.access_time,
+            label: 'Timestamp',
+            value: '$timestamp',
+            color: Colors.blueGrey,
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildWarnings() {
+    final List<Widget> warnings = [];
+
+    if (vibration == 1) {
+      warnings.add(const WarningBanner(
+        message:
+            '⚠ Vibration Detected – Possible Structural Movement',
+        color: Colors.red,
+      ));
+    }
+
+    if (tiltX.abs() > 15 || tiltY.abs() > 15) {
+      warnings.add(const WarningBanner(
+        message: '⚠ Structure Leaning Risk',
+        color: Colors.red,
+      ));
+    }
+
+    if (distance < 50) {
+      warnings.add(const WarningBanner(
+        message: '⚠ Structural Displacement Detected',
+        color: Colors.red,
+      ));
+    }
+
+    return warnings;
+  }
+
+  Color _soilMoistureColor() {
+    if (soilMoisture > 700) return Colors.red;
+    if (soilMoisture > 400) return Colors.orange;
+    return Colors.green;
+  }
+
+  Color _tiltColor(double tilt) {
+    final double absTilt = tilt.abs();
+    if (absTilt > 15) return Colors.red;
+    if (absTilt > 10) return Colors.orange;
+    return Colors.green;
+  }
+
+  Color _distanceColor() {
+    if (distance < 50) return Colors.red;
+    if (distance < 100) return Colors.orange;
+    return Colors.green;
+  }
+
+  Widget _buildSensorCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6.0),
+      elevation: 2,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.2),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(label),
+        trailing: Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+    );
+  }
+}
+
+class WarningBanner extends StatelessWidget {
+  final String message;
+  final Color color;
+
+  const WarningBanner({
+    super.key,
+    required this.message,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        border: Border.all(color: color, width: 2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
       ),
     );
   }
