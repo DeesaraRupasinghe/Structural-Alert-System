@@ -4,8 +4,47 @@ import 'package:firebase_database/firebase_database.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: 'AIzaSyDbfk7tOz3fhlOLnlkWryPuUAny6tN2Zhk',
+      appId: '1:000000000000:android:0000000000000000',
+      messagingSenderId: '000000000000',
+      projectId: 'construction-monitoring-iot',
+      databaseURL:
+          'https://construction-monitoring-iot-default-rtdb.firebaseio.com/',
+    ),
+  );
   runApp(const ConstructionSafetyApp());
+}
+
+/// Data model for sensor log entries from Firebase.
+class SensorLog {
+  final int soilMoisture;
+  final int vibration;
+  final double tiltX;
+  final double tiltY;
+  final int distance;
+  final int timestamp;
+
+  const SensorLog({
+    required this.soilMoisture,
+    required this.vibration,
+    required this.tiltX,
+    required this.tiltY,
+    required this.distance,
+    required this.timestamp,
+  });
+
+  factory SensorLog.fromMap(Map<String, dynamic> map) {
+    return SensorLog(
+      soilMoisture: (map['soilMoisture'] ?? 0) as int,
+      vibration: (map['vibration'] ?? 0) as int,
+      tiltX: (map['tiltX'] ?? 0.0).toDouble(),
+      tiltY: (map['tiltY'] ?? 0.0).toDouble(),
+      distance: (map['distance'] ?? 0) as int,
+      timestamp: (map['timestamp'] ?? 0) as int,
+    );
+  }
 }
 
 class ConstructionSafetyApp extends StatelessWidget {
@@ -14,7 +53,7 @@ class ConstructionSafetyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Construction Safety Monitor',
+      title: 'StructAlert – Construction Safety Monitor',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -34,11 +73,11 @@ class SafetyDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final DatabaseReference sensorRef =
-        FirebaseDatabase.instance.ref('sensorData');
+        FirebaseDatabase.instance.ref('sensorLogs');
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Construction Safety Monitor'),
+        title: const Text('StructAlert – Construction Safety Monitor'),
         centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
         foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -55,21 +94,30 @@ class SafetyDashboard extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final data =
+          final rawData =
               Map<String, dynamic>.from(snapshot.data!.snapshot.value as Map);
 
-          final int soilMoisture = (data['soilMoisture'] ?? 0) as int;
-          final int vibration = (data['vibration'] ?? 0) as int;
-          final double tiltX = (data['tiltX'] ?? 0.0).toDouble();
-          final double tiltY = (data['tiltY'] ?? 0.0).toDouble();
-          final int distance = (data['distance'] ?? 0) as int;
+          // Extract the latest record by highest timestamp
+          SensorLog? latest;
+          for (final entry in rawData.entries) {
+            final record = Map<String, dynamic>.from(entry.value as Map);
+            final log = SensorLog.fromMap(record);
+            if (latest == null || log.timestamp > latest.timestamp) {
+              latest = log;
+            }
+          }
+
+          if (latest == null) {
+            return const Center(child: Text('No sensor data available'));
+          }
 
           return DashboardContent(
-            soilMoisture: soilMoisture,
-            vibration: vibration,
-            tiltX: tiltX,
-            tiltY: tiltY,
-            distance: distance,
+            soilMoisture: latest.soilMoisture,
+            vibration: latest.vibration,
+            tiltX: latest.tiltX,
+            tiltY: latest.tiltY,
+            distance: latest.distance,
+            timestamp: latest.timestamp,
           );
         },
       ),
@@ -83,6 +131,7 @@ class DashboardContent extends StatelessWidget {
   final double tiltX;
   final double tiltY;
   final int distance;
+  final int timestamp;
 
   const DashboardContent({
     super.key,
@@ -91,6 +140,7 @@ class DashboardContent extends StatelessWidget {
     required this.tiltX,
     required this.tiltY,
     required this.distance,
+    required this.timestamp,
   });
 
   @override
@@ -134,6 +184,12 @@ class DashboardContent extends StatelessWidget {
             value: '$distance mm',
             color: _distanceColor(),
           ),
+          _buildSensorCard(
+            icon: Icons.access_time,
+            label: 'Timestamp',
+            value: '$timestamp',
+            color: Colors.blueGrey,
+          ),
         ],
       ),
     );
@@ -144,21 +200,22 @@ class DashboardContent extends StatelessWidget {
 
     if (vibration == 1) {
       warnings.add(const WarningBanner(
-        message: '⚠ STRUCTURAL MOVEMENT DETECTED',
+        message:
+            '⚠ Vibration Detected – Possible Structural Movement',
         color: Colors.red,
       ));
     }
 
     if (tiltX.abs() > 15 || tiltY.abs() > 15) {
       warnings.add(const WarningBanner(
-        message: '⚠ STRUCTURE LEANING',
+        message: '⚠ Structure Leaning Risk',
         color: Colors.red,
       ));
     }
 
     if (distance < 50) {
       warnings.add(const WarningBanner(
-        message: '⚠ DISPLACEMENT DETECTED',
+        message: '⚠ Structural Displacement Detected',
         color: Colors.red,
       ));
     }

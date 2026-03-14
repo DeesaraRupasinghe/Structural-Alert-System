@@ -4,6 +4,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:structural_alert_system/main.dart';
 
 void main() {
+  group('SensorLog', () {
+    test('fromMap creates correct SensorLog', () {
+      final map = {
+        'soilMoisture': 2608,
+        'vibration': 0,
+        'tiltX': 0.42377,
+        'tiltY': -0.34237,
+        'timestamp': 7024,
+        'distance': 42240,
+      };
+
+      final log = SensorLog.fromMap(map);
+
+      expect(log.soilMoisture, 2608);
+      expect(log.vibration, 0);
+      expect(log.tiltX, closeTo(0.42377, 0.001));
+      expect(log.tiltY, closeTo(-0.34237, 0.001));
+      expect(log.timestamp, 7024);
+      expect(log.distance, 42240);
+    });
+
+    test('fromMap handles missing values with defaults', () {
+      final map = <String, dynamic>{};
+
+      final log = SensorLog.fromMap(map);
+
+      expect(log.soilMoisture, 0);
+      expect(log.vibration, 0);
+      expect(log.tiltX, 0.0);
+      expect(log.tiltY, 0.0);
+      expect(log.timestamp, 0);
+      expect(log.distance, 0);
+    });
+  });
+
   group('DashboardContent', () {
     testWidgets('displays all sensor labels', (WidgetTester tester) async {
       await tester.pumpWidget(
@@ -15,6 +50,7 @@ void main() {
               tiltX: 5.0,
               tiltY: 3.0,
               distance: 120,
+              timestamp: 7024,
             ),
           ),
         ),
@@ -25,6 +61,7 @@ void main() {
       expect(find.text('Tilt X'), findsOneWidget);
       expect(find.text('Tilt Y'), findsOneWidget);
       expect(find.text('Distance (mm)'), findsOneWidget);
+      expect(find.text('Timestamp'), findsOneWidget);
     });
 
     testWidgets('displays sensor values correctly', (WidgetTester tester) async {
@@ -37,6 +74,7 @@ void main() {
               tiltX: 5.25,
               tiltY: 3.10,
               distance: 120,
+              timestamp: 12587,
             ),
           ),
         ),
@@ -47,6 +85,7 @@ void main() {
       expect(find.text('5.25°'), findsOneWidget);
       expect(find.text('3.10°'), findsOneWidget);
       expect(find.text('120 mm'), findsOneWidget);
+      expect(find.text('12587'), findsOneWidget);
     });
 
     testWidgets('shows vibration warning when vibration == 1',
@@ -60,12 +99,16 @@ void main() {
               tiltX: 5.0,
               tiltY: 3.0,
               distance: 120,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      expect(find.text('⚠ STRUCTURAL MOVEMENT DETECTED'), findsOneWidget);
+      expect(
+          find.text(
+              '⚠ Vibration Detected – Possible Structural Movement'),
+          findsOneWidget);
       expect(find.text('DETECTED'), findsOneWidget);
     });
 
@@ -80,12 +123,13 @@ void main() {
               tiltX: 16.0,
               tiltY: 3.0,
               distance: 120,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      expect(find.text('⚠ STRUCTURE LEANING'), findsOneWidget);
+      expect(find.text('⚠ Structure Leaning Risk'), findsOneWidget);
     });
 
     testWidgets('shows tilt warning when tiltY exceeds threshold',
@@ -99,12 +143,13 @@ void main() {
               tiltX: 5.0,
               tiltY: -16.0,
               distance: 120,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      expect(find.text('⚠ STRUCTURE LEANING'), findsOneWidget);
+      expect(find.text('⚠ Structure Leaning Risk'), findsOneWidget);
     });
 
     testWidgets('shows displacement warning when distance < 50',
@@ -118,12 +163,14 @@ void main() {
               tiltX: 5.0,
               tiltY: 3.0,
               distance: 40,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      expect(find.text('⚠ DISPLACEMENT DETECTED'), findsOneWidget);
+      expect(
+          find.text('⚠ Structural Displacement Detected'), findsOneWidget);
     });
 
     testWidgets('shows no warnings when all values are safe',
@@ -137,14 +184,19 @@ void main() {
               tiltX: 5.0,
               tiltY: 3.0,
               distance: 120,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      expect(find.text('⚠ STRUCTURAL MOVEMENT DETECTED'), findsNothing);
-      expect(find.text('⚠ STRUCTURE LEANING'), findsNothing);
-      expect(find.text('⚠ DISPLACEMENT DETECTED'), findsNothing);
+      expect(
+          find.text(
+              '⚠ Vibration Detected – Possible Structural Movement'),
+          findsNothing);
+      expect(find.text('⚠ Structure Leaning Risk'), findsNothing);
+      expect(
+          find.text('⚠ Structural Displacement Detected'), findsNothing);
     });
 
     testWidgets('shows all warnings simultaneously',
@@ -158,14 +210,19 @@ void main() {
               tiltX: 20.0,
               tiltY: 18.0,
               distance: 30,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      expect(find.text('⚠ STRUCTURAL MOVEMENT DETECTED'), findsOneWidget);
-      expect(find.text('⚠ STRUCTURE LEANING'), findsOneWidget);
-      expect(find.text('⚠ DISPLACEMENT DETECTED'), findsOneWidget);
+      expect(
+          find.text(
+              '⚠ Vibration Detected – Possible Structural Movement'),
+          findsOneWidget);
+      expect(find.text('⚠ Structure Leaning Risk'), findsOneWidget);
+      expect(
+          find.text('⚠ Structural Displacement Detected'), findsOneWidget);
     });
   });
 
@@ -187,7 +244,7 @@ void main() {
   });
 
   group('ConstructionSafetyApp', () {
-    testWidgets('has correct title in AppBar', (WidgetTester tester) async {
+    testWidgets('renders six sensor cards', (WidgetTester tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -197,13 +254,14 @@ void main() {
               tiltX: 5.0,
               tiltY: 3.0,
               distance: 120,
+              timestamp: 7024,
             ),
           ),
         ),
       );
 
-      // Verify the dashboard content renders within a MaterialApp
-      expect(find.byType(Card), findsNWidgets(5));
+      // 6 cards: Soil Moisture, Vibration, Tilt X, Tilt Y, Distance, Timestamp
+      expect(find.byType(Card), findsNWidgets(6));
     });
   });
 }
